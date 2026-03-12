@@ -7,7 +7,7 @@ import aiohttp
 
 TELEGRAM_TOKEN   = "8722101020:AAFPW-Pi7qtDLrOvb9YJu7MtxS27dFeM7lQ"
 TELEGRAM_CHAT_ID = "457874923"
-API_FOOTBALL_KEY = "64f10f170d2be27c32f0d348ae02904e"
+API_FOOTBALL_KEY = "47dff2948a07fdef4536532d267ace24"
 
 CHECK_INTERVAL        = 60
 MIN_CORNERS_HT        = 8
@@ -218,3 +218,4 @@ if __name__ == "__main__":
 if __name__ == "__main__":
 
     asyncio.run(main())
+
