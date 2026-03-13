@@ -32,22 +32,93 @@ UNDERSTAT_LEAGUES = {39:"EPL",140:"La_liga",135:"Serie_A",78:"Bundesliga",61:"Li
 FBREF_LEAGUES = {39:"Premier-League",140:"La-Liga",135:"Serie-A",78:"Bundesliga",61:"Ligue-1",2:"Champions-League"}
 
 LEAGUE_PROFILES = {
+    # Coupes européennes
     2:  {"name":"Champions League","avg_goals":2.9,"2nd_half_pct":56,
          "goal_peaks":{"0-15":12,"16-30":16,"31-45":18,"46-60":18,"61-75":20,"76-90":16}},
     3:  {"name":"Europa League","avg_goals":2.7,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
     848:{"name":"Conference League","avg_goals":2.6,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
+    # Top 5 Europe
     39: {"name":"Premier League","avg_goals":2.8,"2nd_half_pct":58,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    40: {"name":"Championship","avg_goals":2.7,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":21,"76-90":19}},
     140:{"name":"La Liga","avg_goals":2.6,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    141:{"name":"La Liga 2","avg_goals":2.5,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
     135:{"name":"Serie A","avg_goals":2.5,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":13,"31-45":15,"46-60":20,"61-75":23,"76-90":19}},
+    136:{"name":"Serie B","avg_goals":2.4,"2nd_half_pct":55,
          "goal_peaks":{"0-15":10,"16-30":13,"31-45":15,"46-60":20,"61-75":23,"76-90":19}},
     78: {"name":"Bundesliga","avg_goals":3.1,"2nd_half_pct":57,
          "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
+    79: {"name":"2. Bundesliga","avg_goals":2.9,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
     61: {"name":"Ligue 1","avg_goals":2.5,"2nd_half_pct":55,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    62: {"name":"Ligue 2","avg_goals":2.4,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    # Autres ligues Europe
+    88: {"name":"Eredivisie","avg_goals":3.2,"2nd_half_pct":57,
+         "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
+    94: {"name":"Primeira Liga","avg_goals":2.6,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    144:{"name":"Jupiler Pro League","avg_goals":2.9,"2nd_half_pct":57,
+         "goal_peaks":{"0-15":11,"16-30":15,"31-45":16,"46-60":19,"61-75":21,"76-90":18}},
+    119:{"name":"Superliga DK","avg_goals":2.7,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    103:{"name":"Eliteserien","avg_goals":2.8,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    113:{"name":"Allsvenskan","avg_goals":2.7,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    106:{"name":"Ekstraklasa","avg_goals":2.5,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":13,"31-45":16,"46-60":20,"61-75":22,"76-90":19}},
+    235:{"name":"Premier League RU","avg_goals":2.5,"2nd_half_pct":54,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":19}},
+    98: {"name":"Super Lig","avg_goals":2.7,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    218:{"name":"Super League GR","avg_goals":2.5,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    207:{"name":"Premiership SCO","avg_goals":2.6,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    # Amérique du Sud
+    71: {"name":"Brasileirao A","avg_goals":2.7,"2nd_half_pct":57,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    72: {"name":"Brasileirao B","avg_goals":2.5,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":10,"16-30":13,"31-45":15,"46-60":20,"61-75":23,"76-90":19}},
+    128:{"name":"Liga Profesional AR","avg_goals":2.6,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    265:{"name":"Primera División CL","avg_goals":2.5,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    266:{"name":"Primera División CO","avg_goals":2.5,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    # Amérique du Nord
+    262:{"name":"Liga MX","avg_goals":2.6,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    239:{"name":"MLS","avg_goals":2.9,"2nd_half_pct":57,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    # Moyen-Orient / Asie
+    307:{"name":"Saudi Pro League","avg_goals":3.0,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":12,"16-30":15,"31-45":16,"46-60":19,"61-75":21,"76-90":17}},
+    323:{"name":"UAE Pro League","avg_goals":2.8,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    318:{"name":"Qatar Stars","avg_goals":2.7,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    154:{"name":"Chinese Super League","avg_goals":2.8,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    # Coupes nationales
+    45: {"name":"FA Cup","avg_goals":2.7,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    143:{"name":"Copa del Rey","avg_goals":2.8,"2nd_half_pct":56,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    137:{"name":"Coppa Italia","avg_goals":2.6,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
+    65: {"name":"Coupe de France","avg_goals":2.7,"2nd_half_pct":55,
+         "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
+    81: {"name":"DFB Pokal","avg_goals":3.0,"2nd_half_pct":57,
+         "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
 }
 
 LEAGUES = {
@@ -429,7 +500,7 @@ def calculate_danger_score(fixture, af_stats, sf_data, xg_us, ws_data,
         if t >= 3.0:   score += 20; signals.append(f"🎯 xG très élevé : {t} ({src})")
         elif t >= 2.0: score += 15; signals.append(f"🎯 xG élevé : {t} ({src})")
         elif t >= 1.2: score += 10; signals.append(f"🎯 xG : {t} ({src})")
-        elif t >= 0.7: score += 5;  signals.append(f"🎯 xG : {t} ({src})")
+        elif t >= 0.5: score += 5;  signals.append(f"🎯 xG : {t} ({src})")
         if max(xg_data["home"], xg_data["away"]) >= 2.0:
             score = min(100, score + 3)
             signals.append(f"⚡ Domination xG : {xg_data['home']} vs {xg_data['away']}")
@@ -656,7 +727,30 @@ async def monitor_loop(bot):
                         fixture, af_stats, sf_data, xg_us, ws_data,
                         fb_data, fm_data, hist_home, hist_away, scenario)
 
-                    log.info(f"📊 {home_name} vs {away_name} | {elapsed}' | {ds}/100")
+                    # ── LOG DIAGNOSTIC ────────────────────────────────────────
+                    son_total = af_stats.get("home",{}).get("shots_on",0) + af_stats.get("away",{}).get("shots_on",0)
+                    st_total  = af_stats.get("home",{}).get("shots_total",0) + af_stats.get("away",{}).get("shots_total",0)
+                    cor_total = af_stats.get("home",{}).get("corners",0) + af_stats.get("away",{}).get("corners",0)
+                    pos_h     = af_stats.get("home",{}).get("possession",50)
+
+                    af_line = f"✅ AF tirs={son_total}/{st_total} corners={cor_total} poss={pos_h}%"
+                    us_line = f"✅ Understat xG={xg_us['total']}" if xg_us else "❌ Understat"
+                    fm_line = f"✅ FotMob xG={fm_data['xg_total']} mom={fm_data['momentum']}" if fm_data and fm_data.get("xg_total",0)>0 else ("✅ FotMob (momentum only)" if fm_data else "❌ FotMob")
+                    sf_line = f"✅ SofaScore att.dang={sf_data['home'].get('dangerous_attacks',0)+sf_data['away'].get('dangerous_attacks',0)}" if sf_data else "❌ SofaScore"
+                    ws_line = f"✅ WhoScored ratings={ws_data.get('home_rating',0)}/{ws_data.get('away_rating',0)}" if ws_data else "❌ WhoScored"
+                    fb_line = f"✅ FBref PPDA={fb_data.get('home_ppda','?')}/{fb_data.get('away_ppda','?')}" if fb_data else "❌ FBref"
+                    sc_line = f"✅ Scénario conv={scenario['conversion']}% ({scenario['matches_with_goal']}/{scenario['total_matches']})" if scenario else "❌ Scénario historique"
+
+                    log.info(
+                        f"📊 {home_name} vs {away_name} | {elapsed}' | {ds}/100\n"
+                        f"   {af_line}\n"
+                        f"   {us_line}\n"
+                        f"   {fm_line}\n"
+                        f"   {sf_line}\n"
+                        f"   {ws_line}\n"
+                        f"   {fb_line}\n"
+                        f"   {sc_line}"
+                    )
 
                     if should_alert(fid, ds):
                         log.info(f"🚨 ALERTE : {home_name} vs {away_name} — {ds}/100")
@@ -677,7 +771,7 @@ async def main():
     await bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
         text=(
-            "🤖 *BOT PRÉDICTION BUT v3.1* ✅\n\n"
+            "🤖 *BOT PRÉDICTION BUT v3.2* ✅\n\n"
             "🧠 *6 sources :*\n"
             "  • API-Football (tirs, possession, corners)\n"
             "  • Understat (xG top 5 ligues)\n"
@@ -685,10 +779,10 @@ async def main():
             "  • WhoScored (ratings, forme)\n"
             "  • FBref (PPDA pressing)\n"
             "  • FotMob (xG toutes ligues + momentum)\n\n"
-            "🆕 *Nouveautés v3.1 :*\n"
-            "  • 📊 Reconstruction historique par scénario\n"
-            "  • 📈 Pics de buts par intervalle/ligue\n"
-            "  • ⚙️ Seuil ajusté — alertes plus fréquentes\n\n"
+            "🆕 *Nouveautés v3.2 :*\n"
+            "  • 📊 Log diagnostic par match\n"
+            "  • 🌍 37 ligues dans LEAGUE_PROFILES\n"
+            "  • ⚙️ Seuil xG abaissé à 0.5\n\n"
             f"🎯 Seuil : {DANGER_THRESHOLD}/100\n"
             f"🏆 {len(LEAGUES)} ligues surveillées"
         ),
