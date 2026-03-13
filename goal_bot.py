@@ -1,7 +1,6 @@
 """
-⚽ BOT PRÉDICTION BUT IMMINENT - VERSION 3.1
-Seuil abaissé à 45/100 — scoring réajusté pour fonctionner
-même quand les sources de scraping échouent
+⚽ BOT PRÉDICTION BUT IMMINENT - VERSION 3.2
+Seuil 45/100 — 37 ligues — log diagnostic — fallback Markdown
 """
 
 import asyncio
@@ -32,14 +31,12 @@ UNDERSTAT_LEAGUES = {39:"EPL",140:"La_liga",135:"Serie_A",78:"Bundesliga",61:"Li
 FBREF_LEAGUES = {39:"Premier-League",140:"La-Liga",135:"Serie-A",78:"Bundesliga",61:"Ligue-1",2:"Champions-League"}
 
 LEAGUE_PROFILES = {
-    # Coupes européennes
     2:  {"name":"Champions League","avg_goals":2.9,"2nd_half_pct":56,
          "goal_peaks":{"0-15":12,"16-30":16,"31-45":18,"46-60":18,"61-75":20,"76-90":16}},
     3:  {"name":"Europa League","avg_goals":2.7,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
     848:{"name":"Conference League","avg_goals":2.6,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
-    # Top 5 Europe
     39: {"name":"Premier League","avg_goals":2.8,"2nd_half_pct":58,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
     40: {"name":"Championship","avg_goals":2.7,"2nd_half_pct":56,
@@ -60,7 +57,6 @@ LEAGUE_PROFILES = {
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
     62: {"name":"Ligue 2","avg_goals":2.4,"2nd_half_pct":55,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
-    # Autres ligues Europe
     88: {"name":"Eredivisie","avg_goals":3.2,"2nd_half_pct":57,
          "goal_peaks":{"0-15":11,"16-30":15,"31-45":17,"46-60":19,"61-75":21,"76-90":17}},
     94: {"name":"Primeira Liga","avg_goals":2.6,"2nd_half_pct":56,
@@ -83,23 +79,20 @@ LEAGUE_PROFILES = {
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
     207:{"name":"Premiership SCO","avg_goals":2.6,"2nd_half_pct":56,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
-    # Amérique du Sud
     71: {"name":"Brasileirao A","avg_goals":2.7,"2nd_half_pct":57,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
     72: {"name":"Brasileirao B","avg_goals":2.5,"2nd_half_pct":56,
          "goal_peaks":{"0-15":10,"16-30":13,"31-45":15,"46-60":20,"61-75":23,"76-90":19}},
     128:{"name":"Liga Profesional AR","avg_goals":2.6,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
-    265:{"name":"Primera División CL","avg_goals":2.5,"2nd_half_pct":55,
+    265:{"name":"Primera Division CL","avg_goals":2.5,"2nd_half_pct":55,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
-    266:{"name":"Primera División CO","avg_goals":2.5,"2nd_half_pct":55,
+    266:{"name":"Primera Division CO","avg_goals":2.5,"2nd_half_pct":55,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
-    # Amérique du Nord
     262:{"name":"Liga MX","avg_goals":2.6,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
     239:{"name":"MLS","avg_goals":2.9,"2nd_half_pct":57,
          "goal_peaks":{"0-15":10,"16-30":14,"31-45":16,"46-60":20,"61-75":22,"76-90":18}},
-    # Moyen-Orient / Asie
     307:{"name":"Saudi Pro League","avg_goals":3.0,"2nd_half_pct":56,
          "goal_peaks":{"0-15":12,"16-30":15,"31-45":16,"46-60":19,"61-75":21,"76-90":17}},
     323:{"name":"UAE Pro League","avg_goals":2.8,"2nd_half_pct":55,
@@ -108,7 +101,6 @@ LEAGUE_PROFILES = {
          "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
     154:{"name":"Chinese Super League","avg_goals":2.8,"2nd_half_pct":56,
          "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
-    # Coupes nationales
     45: {"name":"FA Cup","avg_goals":2.7,"2nd_half_pct":55,
          "goal_peaks":{"0-15":11,"16-30":14,"31-45":16,"46-60":19,"61-75":22,"76-90":18}},
     143:{"name":"Copa del Rey","avg_goals":2.8,"2nd_half_pct":56,
@@ -122,18 +114,18 @@ LEAGUE_PROFILES = {
 }
 
 LEAGUES = {
-    2:"Champions League 🌟",3:"Europa League 🌍",848:"Conference League 🏅",
-    39:"Premier League 🏴󠁧󠁢󠁥󠁮󠁧󠁿",40:"Championship 🏴󠁧󠁢󠁥󠁮󠁧󠁿",140:"La Liga 🇪🇸",141:"La Liga 2 🇪🇸",
-    135:"Serie A 🇮🇹",136:"Serie B 🇮🇹",78:"Bundesliga 🇩🇪",79:"2. Bundesliga 🇩🇪",
-    61:"Ligue 1 🇫🇷",62:"Ligue 2 🇫🇷",88:"Eredivisie 🇳🇱",94:"Primeira Liga 🇵🇹",
-    144:"Jupiler Pro League 🇧🇪",119:"Superliga 🇩🇰",103:"Eliteserien 🇳🇴",
-    113:"Allsvenskan 🇸🇪",106:"Ekstraklasa 🇵🇱",235:"Premier League 🇷🇺",
-    98:"Super Lig 🇹🇷",218:"Super League 🇬🇷",207:"Premiership 🏴󠁧󠁢󠁳󠁣󠁴󠁿",
-    71:"Brasileirao A 🇧🇷",72:"Brasileirao B 🇧🇷",128:"Liga Profesional 🇦🇷",
-    262:"Liga MX 🇲🇽",239:"MLS 🇺🇸",265:"Primera División 🇨🇱",266:"Primera División 🇨🇴",
-    307:"Saudi Pro League 🇸🇦",323:"UAE Pro League 🇦🇪",318:"Qatar Stars 🇶🇦",
-    154:"Chinese Super League 🇨🇳",45:"FA Cup 🏴󠁧󠁢󠁥󠁮󠁧󠁿",143:"Copa del Rey 🇪🇸",
-    137:"Coppa Italia 🇮🇹",65:"Coupe de France 🇫🇷",81:"DFB Pokal 🇩🇪",
+    2:"Champions League",3:"Europa League",848:"Conference League",
+    39:"Premier League",40:"Championship",140:"La Liga",141:"La Liga 2",
+    135:"Serie A",136:"Serie B",78:"Bundesliga",79:"2. Bundesliga",
+    61:"Ligue 1",62:"Ligue 2",88:"Eredivisie",94:"Primeira Liga",
+    144:"Jupiler Pro League",119:"Superliga",103:"Eliteserien",
+    113:"Allsvenskan",106:"Ekstraklasa",235:"Premier League RU",
+    98:"Super Lig",218:"Super League GR",207:"Premiership SCO",
+    71:"Brasileirao A",72:"Brasileirao B",128:"Liga Profesional AR",
+    262:"Liga MX",239:"MLS",265:"Primera Division CL",266:"Primera Division CO",
+    307:"Saudi Pro League",323:"UAE Pro League",318:"Qatar Stars",
+    154:"Chinese Super League",45:"FA Cup",143:"Copa del Rey",
+    137:"Coppa Italia",65:"Coupe de France",81:"DFB Pokal",
 }
 
 logging.basicConfig(
@@ -321,10 +313,10 @@ async def fetch_fbref_pressing(session, league_id, home_team, away_team):
         if hp is None and ap is None: return None
         def lbl(p):
             if p is None: return "N/A"
-            if p < 8:  return "🔥 Intense"
-            if p < 11: return "💪 Bon"
-            if p < 14: return "➡️ Moyen"
-            return "⚠️ Faible"
+            if p < 8:  return "Intense"
+            if p < 11: return "Bon"
+            if p < 14: return "Moyen"
+            return "Faible"
         return {"home_ppda": hp, "away_ppda": ap,
                 "home_pressing": lbl(hp), "away_pressing": lbl(ap)}
     except Exception as e:
@@ -357,7 +349,7 @@ async def fetch_fotmob_data(session, home_team, away_team):
             if r.status != 200: return None
             match_data = await r.json()
         result = {"xg_home": 0.0, "xg_away": 0.0, "xg_total": 0.0,
-                  "momentum": "⚖️ Équilibré", "home_dominant": False, "away_dominant": False}
+                  "momentum": "Equilibre", "home_dominant": False, "away_dominant": False}
         for section in match_data.get("content", {}).get("stats", {}).get("stats", []):
             for stat in section.get("stats", []):
                 title = stat.get("title", "").lower(); vals = stat.get("stats", [])
@@ -372,10 +364,10 @@ async def fetch_fotmob_data(session, home_team, away_team):
             recent = entries[-5:]
             hs  = sum(1 for e in recent if e.get("value", 0) > 0)
             as_ = sum(1 for e in recent if e.get("value", 0) < 0)
-            if hs >= 4:    result["momentum"] = "🏠 Domicile domine fortement"; result["home_dominant"] = True
-            elif as_ >= 4: result["momentum"] = "✈️ Extérieur domine fortement"; result["away_dominant"] = True
-            elif hs >= 3:  result["momentum"] = "🏠 Légère domination Domicile"
-            elif as_ >= 3: result["momentum"] = "✈️ Légère domination Extérieur"
+            if hs >= 4:    result["momentum"] = "Domicile domine fortement"; result["home_dominant"] = True
+            elif as_ >= 4: result["momentum"] = "Exterieur domine fortement"; result["away_dominant"] = True
+            elif hs >= 3:  result["momentum"] = "Legere domination Domicile"
+            elif as_ >= 3: result["momentum"] = "Legere domination Exterieur"
         return result
     except Exception as e:
         log.error(f"Erreur FotMob: {e}"); return None
@@ -419,7 +411,7 @@ async def fetch_scenario_history(session, league_id, season, score_home, score_a
                 "conversion": conversion, "avg_goal_minute": avg_min,
                 "dominant_interval": max(slots, key=slots.get)}
     except Exception as e:
-        log.error(f"Erreur scénario: {e}"); return None
+        log.error(f"Erreur scenario: {e}"); return None
 
 def get_interval(elapsed):
     if elapsed <= 15:   return "0-15"
@@ -438,119 +430,108 @@ def calculate_danger_score(fixture, af_stats, sf_data, xg_us, ws_data,
     lid = fixture["league"]["id"]
     haf = af_stats.get("home", {}); aaf = af_stats.get("away", {})
 
-    # Tirs cadrés — 30 pts
     son = haf.get("shots_on", 0) + aaf.get("shots_on", 0)
     st  = haf.get("shots_total", 0) + aaf.get("shots_total", 0)
     spm = son / elapsed
-    if spm >= 0.20:   score += 30; signals.append(f"🔫 Rythme TRÈS intense : {son} cadrés/{st} tirs")
-    elif spm >= 0.12: score += 22; signals.append(f"🔫 Rythme intense : {son}/{st} tirs")
-    elif son >= 8:    score += 18; signals.append(f"🔫 Tirs cadrés : {son}/{st}")
-    elif son >= 5:    score += 12; signals.append(f"🔫 Tirs cadrés : {son}/{st}")
-    elif son >= 3:    score += 7;  signals.append(f"🔫 Tirs cadrés : {son}")
+    if spm >= 0.20:   score += 30; signals.append(f"Rythme TRES intense : {son} cadres/{st} tirs")
+    elif spm >= 0.12: score += 22; signals.append(f"Rythme intense : {son}/{st} tirs")
+    elif son >= 8:    score += 18; signals.append(f"Tirs cadres : {son}/{st}")
+    elif son >= 5:    score += 12; signals.append(f"Tirs cadres : {son}/{st}")
+    elif son >= 3:    score += 7;  signals.append(f"Tirs cadres : {son}")
     elif son >= 1:    score += 3
 
-    # Possession — 10 pts
     ph = haf.get("possession", 50); pa = aaf.get("possession", 50)
     mxp = max(ph, pa)
     if mxp >= 70:
         score += 10; dom = "DOM" if ph > pa else "EXT"
-        signals.append(f"⚡ Possession dominante : {mxp}% ({dom})")
+        signals.append(f"Possession dominante : {mxp}% ({dom})")
     elif mxp >= 60:
         score += 5
 
-    # Corners — 8 pts
     corners = haf.get("corners", 0) + aaf.get("corners", 0)
-    if corners >= 10:  score += 8; signals.append(f"📐 Beaucoup de corners : {corners}")
-    elif corners >= 7: score += 5; signals.append(f"📐 Corners : {corners}")
-    elif corners >= 4: score += 3; signals.append(f"📐 Corners : {corners}")
+    if corners >= 10:  score += 8; signals.append(f"Beaucoup de corners : {corners}")
+    elif corners >= 7: score += 5; signals.append(f"Corners : {corners}")
+    elif corners >= 4: score += 3; signals.append(f"Corners : {corners}")
     elif corners >= 2: score += 1
 
-    # Score serré — 7 pts
     diff = abs(gh - ga)
-    if diff == 0:   score += 7; signals.append(f"⚖️ Score nul ({gh}-{ga}) — pression max")
-    elif diff == 1: score += 4; signals.append(f"⚖️ Score serré ({gh}-{ga})")
+    if diff == 0:   score += 7; signals.append(f"Score nul ({gh}-{ga}) - pression max")
+    elif diff == 1: score += 4; signals.append(f"Score serre ({gh}-{ga})")
 
-    # Historique scénario — 20 pts
     if scenario:
         conv = scenario["conversion"]; tot = scenario["total_matches"]
-        if conv >= 85:   score += 20; signals.append(f"📊 Scénario historique : {conv}% ({scenario['matches_with_goal']}/{tot} matchs)")
-        elif conv >= 70: score += 15; signals.append(f"📊 Scénario historique : {conv}% ({scenario['matches_with_goal']}/{tot})")
-        elif conv >= 55: score += 9;  signals.append(f"📊 Scénario historique : {conv}%")
+        if conv >= 85:   score += 20; signals.append(f"Scenario historique : {conv}% ({scenario['matches_with_goal']}/{tot} matchs)")
+        elif conv >= 70: score += 15; signals.append(f"Scenario historique : {conv}% ({scenario['matches_with_goal']}/{tot})")
+        elif conv >= 55: score += 9;  signals.append(f"Scenario historique : {conv}%")
         elif conv >= 40: score += 4
 
-    # Pic de buts ligue — 10 pts
     profile = LEAGUE_PROFILES.get(lid)
     if profile:
         interval = get_interval(elapsed)
         peak_pct = profile.get("goal_peaks", {}).get(interval, 15)
         if peak_pct >= 22:
-            score += 10; signals.append(f"📈 Pic de buts maximum : {peak_pct}% en {interval}' dans cette ligue")
+            score += 10; signals.append(f"Pic de buts max : {peak_pct}% en {interval}min")
         elif peak_pct >= 18:
-            score += 7;  signals.append(f"📈 Pic de buts élevé : {peak_pct}% en {interval}'")
+            score += 7;  signals.append(f"Pic de buts eleve : {peak_pct}% en {interval}min")
         elif peak_pct >= 15:
-            score += 4;  signals.append(f"📈 Pic de buts : {peak_pct}% en {interval}'")
+            score += 4;  signals.append(f"Pic de buts : {peak_pct}% en {interval}min")
 
-    # BONUS — xG Understat/FotMob
     xg_data = xg_us
     if not xg_data and fm_data and fm_data.get("xg_total", 0) > 0:
         xg_data = {"home": fm_data["xg_home"], "away": fm_data["xg_away"],
                    "total": fm_data["xg_total"]}
     if xg_data:
         t = xg_data["total"]; src = "Understat" if xg_us else "FotMob"
-        if t >= 3.0:   score += 20; signals.append(f"🎯 xG très élevé : {t} ({src})")
-        elif t >= 2.0: score += 15; signals.append(f"🎯 xG élevé : {t} ({src})")
-        elif t >= 1.2: score += 10; signals.append(f"🎯 xG : {t} ({src})")
-        elif t >= 0.5: score += 5;  signals.append(f"🎯 xG : {t} ({src})")
+        if t >= 3.0:   score += 20; signals.append(f"xG tres eleve : {t} ({src})")
+        elif t >= 2.0: score += 15; signals.append(f"xG eleve : {t} ({src})")
+        elif t >= 1.2: score += 10; signals.append(f"xG : {t} ({src})")
+        elif t >= 0.5: score += 5;  signals.append(f"xG : {t} ({src})")
         if max(xg_data["home"], xg_data["away"]) >= 2.0:
             score = min(100, score + 3)
-            signals.append(f"⚡ Domination xG : {xg_data['home']} vs {xg_data['away']}")
+            signals.append(f"Domination xG : {xg_data['home']} vs {xg_data['away']}")
 
-    # BONUS — SofaScore
     if sf_data:
         dh  = sf_data["home"].get("dangerous_attacks", 0)
         da  = sf_data["away"].get("dangerous_attacks", 0)
         bc  = sf_data["home"].get("big_chances", 0) + sf_data["away"].get("big_chances", 0)
         tb  = sf_data["home"].get("touches_box", 0) + sf_data["away"].get("touches_box", 0)
         dan = dh + da
-        if dan >= 30:   score += 8; signals.append(f"🔥 Att. dang. : {dan} ({dh}/{da})")
-        elif dan >= 20: score += 5; signals.append(f"🔥 Att. dang. : {dan}")
+        if dan >= 30:   score += 8; signals.append(f"Att. dang. : {dan} ({dh}/{da})")
+        elif dan >= 20: score += 5; signals.append(f"Att. dang. : {dan}")
         elif dan >= 10: score += 2
-        if bc >= 3:  score = min(100, score + 5); signals.append(f"💥 Grosses occasions : {bc}")
-        if tb >= 20: score = min(100, score + 2); signals.append(f"📦 Touches surface : {tb}")
+        if bc >= 3:  score = min(100, score + 5); signals.append(f"Grosses occasions : {bc}")
+        if tb >= 20: score = min(100, score + 2); signals.append(f"Touches surface : {tb}")
 
-    # BONUS — Momentum FotMob
     if fm_data:
         mom = fm_data.get("momentum", "")
         if fm_data.get("home_dominant") or fm_data.get("away_dominant"):
-            score += 10; signals.append(f"🌊 {mom}")
-        elif "légère" in mom.lower():
-            score += 5; signals.append(f"🌊 {mom}")
+            score += 10; signals.append(f"Momentum : {mom}")
+        elif "legere" in mom.lower():
+            score += 5; signals.append(f"Momentum : {mom}")
 
-    # BONUS — FBref PPDA
     if fb_data:
         hp = fb_data.get("home_ppda"); ap = fb_data.get("away_ppda")
-        if hp and hp < 8:    score += 5; signals.append(f"⚡ Pressing DOM PPDA {hp} ({fb_data['home_pressing']})")
+        if hp and hp < 8:    score += 5; signals.append(f"Pressing DOM PPDA {hp} ({fb_data['home_pressing']})")
         elif hp and hp < 11: score += 2
-        if ap and ap < 8:    score += 5; signals.append(f"⚡ Pressing EXT PPDA {ap} ({fb_data['away_pressing']})")
+        if ap and ap < 8:    score += 5; signals.append(f"Pressing EXT PPDA {ap} ({fb_data['away_pressing']})")
         elif ap and ap < 11: score += 2
 
-    # BONUS — WhoScored
     if ws_data:
         hr = ws_data.get("home_rating", 0); ar = ws_data.get("away_rating", 0)
         mx = max(hr, ar)
-        if mx >= 7.5:   score += 8; signals.append(f"⭐ Ratings : {hr}/{ar}")
-        elif mx >= 7.0: score += 5; signals.append(f"⭐ Ratings : {hr}/{ar}")
+        if mx >= 7.5:   score += 8; signals.append(f"Ratings : {hr}/{ar}")
+        elif mx >= 7.0: score += 5; signals.append(f"Ratings : {hr}/{ar}")
         elif mx >= 6.5: score += 2
         hf = ws_data.get("home_form", ""); af2 = ws_data.get("away_form", "")
         if hf.count("W") >= 3 or af2.count("W") >= 3:
-            score = min(100, score + 2); signals.append(f"📈 Forme : {hf}/{af2}")
+            score = min(100, score + 2); signals.append(f"Forme : {hf}/{af2}")
 
     return min(score, 100), signals
 
 def entry_window(elapsed, ds):
     es = elapsed + 2; ee = elapsed + 5
     we = elapsed + 15 if ds >= 75 else elapsed + 20 if ds >= 55 else elapsed + 25
-    return f"{es}-{ee}'", f"{es}-{we}'"
+    return f"{es}-{ee}min", f"{es}-{we}min"
 
 def calc_probs(ds, elapsed, scenario):
     b    = ds / 100
@@ -568,10 +549,10 @@ def target_odds(ds):
     return "1.85-2.30"
 
 def danger_level(s):
-    if s >= 75:   return "🔴 TRÈS ÉLEVÉ"
-    elif s >= 60: return "🟠 ÉLEVÉ"
-    elif s >= 45: return "🟡 MODÉRÉ"
-    return "🟢 FAIBLE"
+    if s >= 75:   return "TRES ELEVE"
+    elif s >= 60: return "ELEVE"
+    elif s >= 45: return "MODERE"
+    return "FAIBLE"
 
 def should_alert(fid, score):
     if score < DANGER_THRESHOLD: return False
@@ -587,15 +568,15 @@ def format_alert(fixture, af_stats, sf_data, xg_us, ws_data, fb_data,
     gh      = fixture["goals"]["home"] or 0
     ga      = fixture["goals"]["away"] or 0
     league  = LEAGUES.get(lid, fixture["league"]["name"])
-    label   = "MT" if fixture["fixture"]["status"]["short"] == "HT" else f"{elapsed}'"
+    label   = "MT" if fixture["fixture"]["status"]["short"] == "HT" else f"{elapsed}min"
     haf = af_stats.get("home", {}); aaf = af_stats.get("away", {})
     entry, window = entry_window(elapsed, ds)
     probs = calc_probs(ds, elapsed, scenario)
 
     if xg_us:
-        xg_line = f"xG {xg_us['home']}—{xg_us['away']} = *{xg_us['total']}* (Understat)"
+        xg_line = f"xG {xg_us['home']}-{xg_us['away']} = {xg_us['total']} (Understat)"
     elif fm_data and fm_data.get("xg_total", 0) > 0:
-        xg_line = f"xG {fm_data['xg_home']}—{fm_data['xg_away']} = *{fm_data['xg_total']}* (FotMob)"
+        xg_line = f"xG {fm_data['xg_home']}-{fm_data['xg_away']} = {fm_data['xg_total']} (FotMob)"
     else:
         xg_line = "xG : N/A"
 
@@ -604,79 +585,74 @@ def format_alert(fixture, af_stats, sf_data, xg_us, ws_data, fb_data,
         dh = sf_data["home"].get("dangerous_attacks", 0); da = sf_data["away"].get("dangerous_attacks", 0)
         th = sf_data["home"].get("touches_box", 0); ta = sf_data["away"].get("touches_box", 0)
         bc = sf_data["home"].get("big_chances", 0) + sf_data["away"].get("big_chances", 0)
-        sf_line = f"\n🔥 Att.dang: {dh}—{da} | 📦 Surface: {th}—{ta} | 💥 Occ: {bc}"
+        sf_line = f"\nAtt.dang: {dh}-{da} | Surface: {th}-{ta} | Occ: {bc}"
 
     fb_line = ""
     if fb_data:
-        fb_line = (f"\n⚡ PPDA: {fb_data.get('home_ppda','N/A')} "
-                   f"({fb_data.get('home_pressing','')})—"
+        fb_line = (f"\nPPDA: {fb_data.get('home_ppda','N/A')} "
+                   f"({fb_data.get('home_pressing','')})-"
                    f"{fb_data.get('away_ppda','N/A')} ({fb_data.get('away_pressing','')})")
 
     ws_line = ""
     if ws_data:
-        ws_line = (f"\n⭐ Ratings: {ws_data.get('home_rating',0)}—"
+        ws_line = (f"\nRatings: {ws_data.get('home_rating',0)}-"
                    f"{ws_data.get('away_rating',0)} | "
                    f"Forme: {ws_data.get('home_form','')} / {ws_data.get('away_form','')}")
 
-    fm_line = f"\n🌊 {fm_data['momentum']}" if fm_data else ""
+    fm_line = f"\nMomentum: {fm_data['momentum']}" if fm_data else ""
 
     peak_line = ""
     if profile := LEAGUE_PROFILES.get(lid):
         interval = get_interval(elapsed)
         pct = profile.get("goal_peaks", {}).get(interval, 0)
-        peak_line = f"\n📈 Pic de buts {interval}' : {pct}% des buts dans cette ligue"
+        peak_line = f"\nPic de buts {interval}min : {pct}% des buts dans cette ligue"
 
     scenario_block = ""
     if scenario:
         scenario_block = (
-            f"\n\n📊 *RECONSTRUCTION HISTORIQUE*\n"
-            f"Nombre total de matchs : {scenario['total_matches']}\n"
+            f"\n\nRECONSTRUCTION HISTORIQUE\n"
+            f"Matchs analyses : {scenario['total_matches']}\n"
             f"Matchs avec but : {scenario['matches_with_goal']}\n"
-            f"Conversion : *{scenario['conversion']}%*\n"
-            f"Minute moyenne du premier but : {scenario['avg_goal_minute']}'\n"
-            f"Intervalle dominant : {scenario['dominant_interval']}'"
+            f"Conversion : {scenario['conversion']}%\n"
+            f"Minute moyenne : {scenario['avg_goal_minute']}min\n"
+            f"Intervalle dominant : {scenario['dominant_interval']}min"
         )
 
-    signals_text = "\n".join([f"  • {s}" for s in signals]) if signals else "  • Analyse..."
+    signals_text = "\n".join([f"  - {s}" for s in signals]) if signals else "  - Analyse..."
     avg_h = hist_home["avg"] if hist_home else "N/A"
     avg_a = hist_away["avg"] if hist_away else "N/A"
     hist  = f"{avg_h} / {avg_a} buts/match" if avg_h != "N/A" else "N/A"
 
-    return f"""⚡ *BUT IMMINENT DÉTECTÉ* ⚡
+    return f"""BUT IMMINENT DETECTE
 
-🏆 {league}
-⚽ *{home} vs {away}*
-📊 `{gh}-{ga}` | ⏱️ {label}
+{league}
+{home} vs {away}
+Score: {gh}-{ga} | {label}
 
-━━━━━━━━━━━━━━━━━━
-🔥 *SCORE : {ds}/100* — {danger_level(ds)}
+SCORE : {ds}/100 - {danger_level(ds)}
 
-━━━━━━━━━━━━━━━━━━
-📈 *SIGNAUX :*
+SIGNAUX :
 {signals_text}
 
-━━━━━━━━━━━━━━━━━━
-📊 *STATS (6 sources)*
-🎯 {xg_line}
-🔫 Tirs: {haf.get('shots_on',0)}/{haf.get('shots_total',0)}—{aaf.get('shots_on',0)}/{aaf.get('shots_total',0)}
-⚡ Poss: {haf.get('possession',50)}%—{aaf.get('possession',50)}%
-📐 Corners: {haf.get('corners',0)}—{aaf.get('corners',0)}{sf_line}{fb_line}{ws_line}{fm_line}{peak_line}{scenario_block}
+STATS (6 sources)
+{xg_line}
+Tirs: {haf.get('shots_on',0)}/{haf.get('shots_total',0)}-{aaf.get('shots_on',0)}/{aaf.get('shots_total',0)}
+Poss: {haf.get('possession',50)}%-{aaf.get('possession',50)}%
+Corners: {haf.get('corners',0)}-{aaf.get('corners',0)}{sf_line}{fb_line}{ws_line}{fm_line}{peak_line}{scenario_block}
 
-📊 Historique: {hist}
+Historique: {hist}
 
-━━━━━━━━━━━━━━━━━━
-🎯 Point d'entrée : {entry} | ⚡ Cote cible : {target_odds(ds)}
-⏱️ Intervalle de but attendu : {window}
-📈 Probabilités : jusqu'à la 70' → *{probs['30min']}%* | Jusqu'à la fin → *{probs['total']}%*
+Point entree : {entry} | Cote cible : {target_odds(ds)}
+Intervalle but attendu : {window}
+Proba jusqu a 70min : {probs['30min']}% | Jusqu a la fin : {probs['total']}%
 
-💰 *PARI OPTIMAL :* `Prochain but — entrée {entry}`
-⚠️ _Responsable_ | 🕐 _{now}_""".strip()
+PARI OPTIMAL : Prochain but - entree {entry}
+Responsable | {now}""".strip()
 
 async def send_message(bot, text):
     try:
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text,
-                               parse_mode=ParseMode.MARKDOWN)
-        log.info("✅ Alerte envoyée")
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=text)
+        log.info("Alerte envoyee")
     except Exception as e:
         log.error(f"Erreur Telegram: {e}")
 
@@ -684,10 +660,10 @@ async def monitor_loop(bot):
     async with aiohttp.ClientSession() as session:
         while True:
             try:
-                log.info(f"🔍 Scan... {datetime.now().strftime('%H:%M:%S')}")
+                log.info(f"Scan... {datetime.now().strftime('%H:%M:%S')}")
                 fixtures = await fetch_live_fixtures(session)
                 targets  = [f for f in fixtures if f["league"]["id"] in LEAGUES]
-                log.info(f"📡 {len(targets)} matchs en direct")
+                log.info(f"{len(targets)} matchs en direct")
 
                 for fixture in targets:
                     fid       = fixture["fixture"]["id"]
@@ -727,22 +703,21 @@ async def monitor_loop(bot):
                         fixture, af_stats, sf_data, xg_us, ws_data,
                         fb_data, fm_data, hist_home, hist_away, scenario)
 
-                    # ── LOG DIAGNOSTIC ────────────────────────────────────────
                     son_total = af_stats.get("home",{}).get("shots_on",0) + af_stats.get("away",{}).get("shots_on",0)
                     st_total  = af_stats.get("home",{}).get("shots_total",0) + af_stats.get("away",{}).get("shots_total",0)
                     cor_total = af_stats.get("home",{}).get("corners",0) + af_stats.get("away",{}).get("corners",0)
                     pos_h     = af_stats.get("home",{}).get("possession",50)
 
-                    af_line = f"✅ AF tirs={son_total}/{st_total} corners={cor_total} poss={pos_h}%"
-                    us_line = f"✅ Understat xG={xg_us['total']}" if xg_us else "❌ Understat"
-                    fm_line = f"✅ FotMob xG={fm_data['xg_total']} mom={fm_data['momentum']}" if fm_data and fm_data.get("xg_total",0)>0 else ("✅ FotMob (momentum only)" if fm_data else "❌ FotMob")
-                    sf_line = f"✅ SofaScore att.dang={sf_data['home'].get('dangerous_attacks',0)+sf_data['away'].get('dangerous_attacks',0)}" if sf_data else "❌ SofaScore"
-                    ws_line = f"✅ WhoScored ratings={ws_data.get('home_rating',0)}/{ws_data.get('away_rating',0)}" if ws_data else "❌ WhoScored"
-                    fb_line = f"✅ FBref PPDA={fb_data.get('home_ppda','?')}/{fb_data.get('away_ppda','?')}" if fb_data else "❌ FBref"
-                    sc_line = f"✅ Scénario conv={scenario['conversion']}% ({scenario['matches_with_goal']}/{scenario['total_matches']})" if scenario else "❌ Scénario historique"
+                    af_line = f"OK AF tirs={son_total}/{st_total} corners={cor_total} poss={pos_h}%"
+                    us_line = f"OK Understat xG={xg_us['total']}" if xg_us else "-- Understat"
+                    fm_line = f"OK FotMob xG={fm_data['xg_total']}" if fm_data and fm_data.get("xg_total",0)>0 else ("OK FotMob (momentum)" if fm_data else "-- FotMob")
+                    sf_line = f"OK SofaScore att.dang={sf_data['home'].get('dangerous_attacks',0)+sf_data['away'].get('dangerous_attacks',0)}" if sf_data else "-- SofaScore"
+                    ws_line = f"OK WhoScored ratings={ws_data.get('home_rating',0)}/{ws_data.get('away_rating',0)}" if ws_data else "-- WhoScored"
+                    fb_line = f"OK FBref PPDA={fb_data.get('home_ppda','?')}/{fb_data.get('away_ppda','?')}" if fb_data else "-- FBref"
+                    sc_line = f"OK Scenario conv={scenario['conversion']}% ({scenario['matches_with_goal']}/{scenario['total_matches']})" if scenario else "-- Scenario historique"
 
                     log.info(
-                        f"📊 {home_name} vs {away_name} | {elapsed}' | {ds}/100\n"
+                        f"{home_name} vs {away_name} | {elapsed}min | {ds}/100\n"
                         f"   {af_line}\n"
                         f"   {us_line}\n"
                         f"   {fm_line}\n"
@@ -753,7 +728,7 @@ async def monitor_loop(bot):
                     )
 
                     if should_alert(fid, ds):
-                        log.info(f"🚨 ALERTE : {home_name} vs {away_name} — {ds}/100")
+                        log.info(f"ALERTE : {home_name} vs {away_name} -- {ds}/100")
                         await send_message(bot, format_alert(
                             fixture, af_stats, sf_data, xg_us, ws_data,
                             fb_data, fm_data, ds, signals,
@@ -771,22 +746,16 @@ async def main():
     await bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
         text=(
-            "🤖 *BOT PRÉDICTION BUT v3.2* ✅\n\n"
-            "🧠 *6 sources :*\n"
-            "  • API-Football (tirs, possession, corners)\n"
-            "  • Understat (xG top 5 ligues)\n"
-            "  • SofaScore (att. dang., touches surface)\n"
-            "  • WhoScored (ratings, forme)\n"
-            "  • FBref (PPDA pressing)\n"
-            "  • FotMob (xG toutes ligues + momentum)\n\n"
-            "🆕 *Nouveautés v3.2 :*\n"
-            "  • 📊 Log diagnostic par match\n"
-            "  • 🌍 37 ligues dans LEAGUE_PROFILES\n"
-            "  • ⚙️ Seuil xG abaissé à 0.5\n\n"
-            f"🎯 Seuil : {DANGER_THRESHOLD}/100\n"
-            f"🏆 {len(LEAGUES)} ligues surveillées"
-        ),
-        parse_mode=ParseMode.MARKDOWN
+            "BOT PREDICTION BUT v3.2\n\n"
+            "6 sources : API-Football, Understat, SofaScore, WhoScored, FBref, FotMob\n\n"
+            "Nouveautes v3.2 :\n"
+            "- Log diagnostic par match\n"
+            "- 37 ligues dans LEAGUE PROFILES\n"
+            "- Seuil xG abaisse a 0.5\n"
+            "- Plus de crash Markdown\n\n"
+            f"Seuil : {DANGER_THRESHOLD}/100\n"
+            f"{len(LEAGUES)} ligues surveillees"
+        )
     )
     await monitor_loop(bot)
 
