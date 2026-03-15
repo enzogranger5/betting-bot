@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = "457874923"
 API_FOOTBALL_KEY = "47dff2948a07fdef4536532d267ace24"
 
 CHECK_INTERVAL   = 60
-DANGER_THRESHOLD = 55
+DANGER_THRESHOLD = 45
 
 # ─── FILTRES ────────────────────────────────────────────────────────────────
 MAX_ELAPSED     = 75
