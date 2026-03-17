@@ -1,16 +1,3 @@
-“””
-BOT PREDICTION BUT IMMINENT - VERSION 3.9
-Source unique : API-Football
-Scoring recalibre 0-100 avec toutes les donnees disponibles
-
-- xG estime depuis les tirs
-- Acceleration offensive (delta shots)
-- Momentum simule
-- Big chances approximees
-- Filtre anti matchs peu actifs
-- Inactif 23h30 -> 07h00
-  “””
-
 import asyncio
 import logging
 import re
