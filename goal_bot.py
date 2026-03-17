@@ -206,7 +206,7 @@ return {“x-apisports-key”: API_FOOTBALL_KEY}
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-# API-FOOTBALL — fetch
+# API-FOOTBALL - fetch
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -357,7 +357,7 @@ log.debug(f”Erreur Understat: {e}”); return None
 
 # ─────────────────────────────────────────────────────────────────────────────
 
-# SCORING v3.9 — 100 pts possibles avec API-Football seul
+# SCORING v3.9 - 100 pts possibles avec API-Football seul
 
 # 
 
@@ -419,7 +419,7 @@ cor = cor_h + cor_a
 if son < 2 and st < 6:
     return 0, ["Match peu actif"]
 
-# ── 1. xG (Understat si dispo, sinon estimé) — max 25 pts ────────────────
+# ── 1. xG (Understat si dispo, sinon estimé) - max 25 pts ────────────────
 shots_off   = max(0, st - son)
 xg_estime   = round(son * 0.32 + shots_off * 0.08 + cor * 0.05, 2)
 
@@ -437,7 +437,7 @@ elif xg_val >= 1.2: score += 10; signals.append(f"xG : {xg_val} ({xg_src})")
 elif xg_val >= 0.6: score += 5
 elif xg_val >= 0.2: score += 2
 
-# ── 2. Tirs cadrés — rythme et volume — max 20 pts ───────────────────────
+# ── 2. Tirs cadrés - rythme et volume - max 20 pts ───────────────────────
 spm = son / elapsed
 if spm >= 0.30:    score += 20; signals.append(f"Rythme TRES intense : {son} cadres / {st} tirs")
 elif spm >= 0.20:  score += 15; signals.append(f"Rythme intense : {son}/{st} tirs")
@@ -446,7 +446,7 @@ elif son >= 6:     score += 8;  signals.append(f"Beaucoup de tirs cadres : {son}
 elif son >= 4:     score += 5;  signals.append(f"Tirs cadres : {son}/{st}")
 elif son >= 2:     score += 3;  signals.append(f"Tirs cadres : {son}")
 
-# ── 3. Accélération offensive (delta shots) — max 15 pts ─────────────────
+# ── 3. Accélération offensive (delta shots) - max 15 pts ─────────────────
 prev = last_stats.get(fid)
 delta_son = 0
 if prev:
@@ -462,7 +462,7 @@ if prev:
         score += 3
 last_stats[fid] = {"shots_on": son, "shots_total": st}
 
-# ── 4. Scenario historique — max 15 pts ──────────────────────────────────
+# ── 4. Scenario historique - max 15 pts ──────────────────────────────────
 if scenario:
     conv = scenario["conversion"]; tot = scenario["total_matches"]
     if conv >= 85:   score += 15; signals.append(f"Historique : {conv}% ({scenario['matches_with_goal']}/{tot})")
@@ -471,7 +471,7 @@ if scenario:
     elif conv >= 55: score += 6;  signals.append(f"Historique : {conv}%")
     elif conv >= 40: score += 3
 
-# ── 5. Forme des équipes — max 12 pts ────────────────────────────────────
+# ── 5. Forme des équipes - max 12 pts ────────────────────────────────────
 bonus_form = 0
 for hist in [hist_home, hist_away]:
     if not hist: continue
@@ -488,7 +488,7 @@ if bonus_form > 0:
     if hist_away: parts.append(f"EXT o25={hist_away.get('over25_pct',0)}% btts={hist_away.get('btts_pct',0)}%")
     signals.append(f"Forme offensive : {' | '.join(parts)} (+{bonus_form}pts)")
 
-# ── 6. Big chances approximées — max 10 pts ───────────────────────────────
+# ── 6. Big chances approximées - max 10 pts ───────────────────────────────
 # Proxy : ratio tirs cadrés / total élevé = occasions de qualité
 ratio_quality = (son / st) if st > 0 else 0
 if son >= 10:
@@ -500,7 +500,7 @@ elif son >= 5 and ratio_quality >= 0.45:
 elif son >= 4:
     score += 3
 
-# ── 7. Momentum simulé — max 10 pts ──────────────────────────────────────
+# ── 7. Momentum simulé - max 10 pts ──────────────────────────────────────
 # Proxy via tirs + possession + delta
 dom_possession = max(pos_h, pos_a)
 if st >= 18 and son >= 6:
@@ -512,14 +512,14 @@ elif st >= 10 and son >= 3:
 elif dom_possession >= 65:
     score += 3;  signals.append(f"Domination possession : {dom_possession}%")
 
-# ── 8. Corners — max 8 pts ────────────────────────────────────────────────
+# ── 8. Corners - max 8 pts ────────────────────────────────────────────────
 if cor >= 12:   score += 8; signals.append(f"Enormement de corners : {cor}")
 elif cor >= 9:  score += 6; signals.append(f"Nombreux corners : {cor}")
 elif cor >= 6:  score += 4; signals.append(f"Corners : {cor}")
 elif cor >= 3:  score += 2; signals.append(f"Corners : {cor}")
 elif cor >= 1:  score += 1
 
-# ── 9. Pic de buts ligue — max 8 pts ─────────────────────────────────────
+# ── 9. Pic de buts ligue - max 8 pts ─────────────────────────────────────
 profile = LEAGUE_PROFILES.get(lid)
 if profile:
     interval = get_interval(elapsed)
@@ -528,12 +528,12 @@ if profile:
     elif peak >= 18: score += 5; signals.append(f"Pic de buts eleve : {peak}% en {interval}min")
     elif peak >= 15: score += 2
 
-# ── 10. Score serré — max 7 pts ───────────────────────────────────────────
+# ── 10. Score serré - max 7 pts ───────────────────────────────────────────
 diff = abs(gh - ga)
-if diff == 0:   score += 7; signals.append(f"Score nul ({gh}-{ga}) — pression max")
+if diff == 0:   score += 7; signals.append(f"Score nul ({gh}-{ga}) - pression max")
 elif diff == 1: score += 4; signals.append(f"Score serre ({gh}-{ga})")
 
-# ── 11. Possession dominante — max 5 pts ──────────────────────────────────
+# ── 11. Possession dominante - max 5 pts ──────────────────────────────────
 if dom_possession >= 72:
     score += 5; dom_side = "DOM" if pos_h > pos_a else "EXT"
     signals.append(f"Possession tres dominante : {dom_possession}% ({dom_side})")
@@ -573,15 +573,15 @@ mapping = {“W”:“✅”,“D”:“🟡”,“L”:“❌”}
 return “ “.join(mapping.get(c,“⚪”) for c in form_str[:5])
 
 def target_odds(ds):
-if ds >= 80:   return “1.35–1.55”
-elif ds >= 65: return “1.50–1.75”
-elif ds >= 50: return “1.65–1.95”
-return “1.85–2.20”
+if ds >= 80:   return “1.35-1.55”
+elif ds >= 65: return “1.50-1.75”
+elif ds >= 50: return “1.65-1.95”
+return “1.85-2.20”
 
 def entry_window(elapsed, ds):
 es = elapsed+2; ee = elapsed+5
 we = elapsed+12 if ds >= 80 else elapsed+18 if ds >= 65 else elapsed+25
-return f”{es}–{ee}min”, f”{es}–{we}min”
+return f”{es}-{ee}min”, f”{es}-{we}min”
 
 def calc_prob(ds, elapsed, scenario):
 ptot = min(95, int(ds/100*90 + (90-elapsed)/90*10))
@@ -617,7 +617,7 @@ cor_h = haf.get("corners",0);     cor_a = aaf.get("corners",0)
 pos_h = haf.get("possession",50); pos_a = aaf.get("possession",50)
 
 if xg_us and xg_us.get("total",0) > 0:
-    xg_str = f"xG {xg_us['home']}–{xg_us['away']} = <b>{xg_us['total']}</b> <i>(Understat)</i>"
+    xg_str = f"xG {xg_us['home']}-{xg_us['away']} = <b>{xg_us['total']}</b> <i>(Understat)</i>"
 else:
     xg_str = f"xG estimé : <b>{xg_estime}</b>"
 
@@ -633,15 +633,15 @@ return (
     f"🟢 <b>ALERTE BUT IMMINENT</b>\n"
     f"━━━━━━━━━━━━━━━━━━━━\n"
     f"🏆 <b>{league}</b> · {label}\n\n"
-    f"🏟 <b>{home}</b>  <b>{gh} – {ga}</b>  <b>{away}</b>\n\n"
-    f"📊 Score de danger : <b>{ds}/100</b> — {danger_level(ds)}\n"
+    f"🏟 <b>{home}</b>  <b>{gh} - {ga}</b>  <b>{away}</b>\n\n"
+    f"📊 Score de danger : <b>{ds}/100</b> - {danger_level(ds)}\n"
     f"━━━━━━━━━━━━━━━━━━━━\n"
     f"⚡ <b>Signaux clés</b>\n"
     f"{signals_str}\n\n"
     f"📈 <b>Stats live</b>\n"
-    f"  Tirs cadrés  : {son_h}/{st_h} – {son_a}/{st_a}\n"
-    f"  Possession   : {pos_h}% – {pos_a}%\n"
-    f"  Corners      : {cor_h} – {cor_a}\n"
+    f"  Tirs cadrés  : {son_h}/{st_h} - {son_a}/{st_a}\n"
+    f"  Possession   : {pos_h}% - {pos_a}%\n"
+    f"  Corners      : {cor_h} - {cor_a}\n"
     f"  {xg_str}\n"
     f"━━━━━━━━━━━━━━━━━━━━\n"
     f"🔁 <b>Forme récente (5 matchs)</b>\n"
