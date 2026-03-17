@@ -1,13 +1,15 @@
 """
-BOT PREDICTION BUT IMMINENT - VERSION 3.6
-63 ligues — FotMob entierement corrige — scoring recalibre
-Sources : API-Football + FotMob + Understat
+BOT PREDICTION BUT IMMINENT - VERSION 3.7
+63 ligues — SofaScore (stats + momentum) + API-Football
+API-Football = base fiable (seuil 45 atteignable seul)
+SofaScore = bonus points sur les données live enrichies
 """
 
 import asyncio
 import logging
 import re
 import json
+import random
 from datetime import datetime
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -21,14 +23,14 @@ CHECK_INTERVAL   = 60
 DANGER_THRESHOLD = 45
 
 # ─── FILTRES ────────────────────────────────────────────────────────────────
-MAX_ELAPSED     = 75
+MAX_ELAPSED     = 70
 MAX_TOTAL_GOALS = 2
 MAX_ZERO_ZERO   = 2
 # ────────────────────────────────────────────────────────────────────────────
 
 BASE_URL_AF = "https://v3.football.api-sports.io"
+BASE_URL_SF = "https://www.sofascore.com/api/v1"
 BASE_URL_US = "https://understat.com"
-BASE_URL_FM = "https://www.fotmob.com/api"
 
 UNDERSTAT_LEAGUES = {
     39: "EPL", 140: "La_liga", 135: "Serie_A",
@@ -198,15 +200,37 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 last_alert_score: dict = {}
+sf_id_cache: dict = {}
 
-HEADERS_BROWSER = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "application/json, text/html,*/*;q=0.9",
-    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-}
+USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+]
+
+def get_sf_headers():
+    return {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "*/*",
+        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://www.sofascore.com/",
+        "Origin": "https://www.sofascore.com",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+    }
 
 def get_headers_af():
     return {"x-apisports-key": API_FOOTBALL_KEY}
+
+HEADERS_BROWSER = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "application/json",
+    "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+}
 
 async def fetch_live_fixtures(session):
     try:
@@ -326,113 +350,125 @@ async def fetch_scenario_history(session, league_id, season, score_home, score_a
     except Exception as e:
         log.error(f"Erreur scenario: {e}"); return None
 
-def _fv(val):
-    if val is None: return 0.0
-    try: return float(str(val).split("(")[0].replace("%","").strip())
-    except: return 0.0
+def _sf_val(val):
+    if val is None: return 0
+    try:
+        return int(str(val).replace("%","").replace(" ","").split("/")[0].strip())
+    except: return 0
 
-async def fetch_fotmob_data(session, home_team, away_team):
+async def fetch_sofascore_id(session, home_team, away_team):
+    cache_key = f"{home_team[:4].lower()}_{away_team[:4].lower()}"
+    if cache_key in sf_id_cache:
+        return sf_id_cache[cache_key]
     try:
         async with session.get(
-                f"{BASE_URL_FM}/matches",
-                headers=HEADERS_BROWSER,
-                params={"date": datetime.now().strftime("%Y%m%d")},
-                timeout=10) as r:
+                f"{BASE_URL_SF}/sport/football/events/live",
+                headers=get_sf_headers(), timeout=10) as r:
+            if r.status != 200:
+                log.debug(f"SofaScore /live status {r.status}"); return None
+            data = await r.json()
+        hl = home_team.lower(); al = away_team.lower()
+        for event in data.get("events", []):
+            h = event.get("homeTeam", {}).get("name", "").lower()
+            a = event.get("awayTeam", {}).get("name", "").lower()
+            if ((hl[:4] in h or h[:4] in hl) and (al[:4] in a or a[:4] in al)):
+                eid = event.get("id")
+                if eid:
+                    sf_id_cache[cache_key] = eid
+                    return eid
+        return None
+    except Exception as e:
+        log.debug(f"Erreur SofaScore /live: {e}"); return None
+
+async def fetch_sofascore_stats(session, event_id):
+    try:
+        async with session.get(
+                f"{BASE_URL_SF}/event/{event_id}/statistics",
+                headers=get_sf_headers(), timeout=10) as r:
             if r.status != 200: return None
             data = await r.json()
-
-        hl = home_team.lower(); al = away_team.lower()
-        match_id = None
-        for league in data.get("leagues", []):
-            for match in league.get("matches", []):
-                h = match.get("home", {}).get("name", "").lower()
-                a = match.get("away", {}).get("name", "").lower()
-                started  = match.get("status", {}).get("started", False)
-                finished = match.get("status", {}).get("finished", False)
-                if started and not finished:
-                    if (hl[:4] in h or h[:4] in hl) and (al[:4] in a or a[:4] in al):
-                        match_id = match.get("id"); break
-            if match_id: break
-
-        if not match_id: return None
-
-        async with session.get(
-                f"{BASE_URL_FM}/matchDetails",
-                headers=HEADERS_BROWSER,
-                params={"matchId": match_id}, timeout=10) as r:
-            if r.status != 200: return None
-            md = await r.json()
-
         result = {
-            "xg_home":0.0,"xg_away":0.0,"xg_total":0.0,
-            "xgot_home":0.0,"xgot_away":0.0,
             "shots_on_home":0,"shots_on_away":0,
             "shots_total_home":0,"shots_total_away":0,
             "shots_box_home":0,"shots_box_away":0,
-            "shots_woodwork_home":0,"shots_woodwork_away":0,
-            "big_chances_home":0,"big_chances_away":0,
-            "big_chances_missed_home":0,"big_chances_missed_away":0,
-            "possession_home":50,"possession_away":50,
-            "touches_opp_box_home":0,"touches_opp_box_away":0,
-            "crosses_home":0,"crosses_away":0,
-            "keeper_saves_home":0,"keeper_saves_away":0,
-            "interceptions_home":0,"interceptions_away":0,
+            "woodwork_home":0,"woodwork_away":0,
+            "saves_home":0,"saves_away":0,
             "corners_home":0,"corners_away":0,
-            "fouls_home":0,"fouls_away":0,
-            "momentum":"Equilibre","home_dominant":False,"away_dominant":False,
+            "possession_home":50,"possession_away":50,
+            "touches_box_home":0,"touches_box_away":0,
+            "blocked_home":0,"blocked_away":0,
         }
-
         KEY_MAP = {
-            "expected_goals":           ("xg_home",                "xg_away"),
-            "expected_goals_on_target": ("xgot_home",              "xgot_away"),
-            "ShotsOnTarget":            ("shots_on_home",           "shots_on_away"),
-            "total_shots":              ("shots_total_home",        "shots_total_away"),
-            "shots_inside_box":         ("shots_box_home",          "shots_box_away"),
-            "shots_woodwork":           ("shots_woodwork_home",     "shots_woodwork_away"),
-            "big_chance":               ("big_chances_home",        "big_chances_away"),
-            "big_chance_missed_title":  ("big_chances_missed_home", "big_chances_missed_away"),
-            "BallPossesion":            ("possession_home",         "possession_away"),
-            "touches_opp_box":          ("touches_opp_box_home",    "touches_opp_box_away"),
-            "accurate_crosses":         ("crosses_home",            "crosses_away"),
-            "keeper_saves":             ("keeper_saves_home",       "keeper_saves_away"),
-            "interceptions":            ("interceptions_home",      "interceptions_away"),
-            "corners":                  ("corners_home",            "corners_away"),
-            "fouls":                    ("fouls_home",              "fouls_away"),
+            "shotsOnGoal":          ("shots_on_home",    "shots_on_away"),
+            "totalShotsOnGoal":     ("shots_total_home", "shots_total_away"),
+            "goalKeeperSaves":      ("saves_home",       "saves_away"),
+            "cornerKicks":          ("corners_home",     "corners_away"),
+            "ballPossession":       ("possession_home",  "possession_away"),
+            "touchesInOppBox":      ("touches_box_home", "touches_box_away"),
+            "touchesInPenaltyArea": ("touches_box_home", "touches_box_away"),
+            "hitWoodwork":          ("woodwork_home",    "woodwork_away"),
+            "totalShotsInsideBox":  ("shots_box_home",   "shots_box_away"),
+            "blockedScoringAttempt":("blocked_home",     "blocked_away"),
         }
-
-        for group in md.get("content", {}).get("stats", {}).get("stats", []):
-            for stat in group.get("stats", []):
-                key  = stat.get("key", "")
-                vals = stat.get("stats", [])
-                if key in KEY_MAP and len(vals) >= 2:
-                    kh, ka = KEY_MAP[key]
-                    result[kh] = _fv(vals[0])
-                    result[ka] = _fv(vals[1])
-
-        result["xg_total"] = round(result["xg_home"] + result["xg_away"], 2)
-
-        entries = md.get("content", {}).get("momentum", {}).get("entries", [])
-        if entries:
-            recent = entries[-5:]
-            hs  = sum(1 for e in recent if e.get("value", 0) > 0)
-            as_ = sum(1 for e in recent if e.get("value", 0) < 0)
-            if hs >= 4:    result["momentum"]="Domicile domine"; result["home_dominant"]=True
-            elif as_ >= 4: result["momentum"]="Exterieur domine"; result["away_dominant"]=True
-            elif hs >= 3:  result["momentum"]="Legere dom. Domicile"
-            elif as_ >= 3: result["momentum"]="Legere dom. Exterieur"
-
-        xgot = round(result["xgot_home"]+result["xgot_away"], 2)
-        bc   = int(result["big_chances_home"])+int(result["big_chances_away"])
-        tob  = int(result["touches_opp_box_home"])+int(result["touches_opp_box_away"])
+        for period in data.get("statistics", []):
+            if period.get("period") != "ALL": continue
+            for group in period.get("groups", []):
+                for item in group.get("statisticsItems", []):
+                    key = item.get("key","")
+                    if key in KEY_MAP:
+                        kh, ka = KEY_MAP[key]
+                        result[kh] = _sf_val(item.get("homeValue", item.get("home", 0)))
+                        result[ka] = _sf_val(item.get("awayValue", item.get("away", 0)))
         log.info(
-            f"OK FotMob xG={result['xg_total']} xGOT={xgot} "
-            f"tirs={int(result['shots_on_home'])}+{int(result['shots_on_away'])} "
-            f"bc={bc} surface={tob} momentum={result['momentum']}"
+            f"OK SofaScore tirs={result['shots_on_home']}+{result['shots_on_away']} "
+            f"surface={result['touches_box_home']}+{result['touches_box_away']} "
+            f"saves={result['saves_home']}+{result['saves_away']} "
+            f"bois={result['woodwork_home']+result['woodwork_away']}"
         )
         return result
-
     except Exception as e:
-        log.error(f"Erreur FotMob: {e}"); return None
+        log.debug(f"Erreur SofaScore stats: {e}"); return None
+
+async def fetch_sofascore_momentum(session, event_id, elapsed):
+    try:
+        async with session.get(
+                f"{BASE_URL_SF}/event/{event_id}/graph",
+                headers=get_sf_headers(), timeout=10) as r:
+            if r.status != 200: return None
+            data = await r.json()
+        points = data.get("graphPoints", [])
+        if not points: return None
+        recent_min = max(1, elapsed - 8)
+        recent = [p for p in points if p.get("minute", 0) >= recent_min]
+        if not recent:
+            recent = points[-8:] if len(points) >= 8 else points
+        home_pts  = sum(p["value"] for p in recent if p.get("value", 0) > 0)
+        away_pts  = abs(sum(p["value"] for p in recent if p.get("value", 0) < 0))
+        total_pts = home_pts + away_pts
+        if total_pts == 0: return {"side":"balanced","intensity":0,"label":"Equilibre"}
+        home_pct = home_pts / total_pts * 100
+        away_pct = away_pts / total_pts * 100
+        intensity = min(100, int(sum(abs(p.get("value",0)) for p in recent) / len(recent) * 3))
+        if home_pct >= 70:   side = "home_strong"; label = "Domicile domine fortement"
+        elif home_pct >= 58: side = "home_slight"; label = "Legere domination Domicile"
+        elif away_pct >= 70: side = "away_strong"; label = "Exterieur domine fortement"
+        elif away_pct >= 58: side = "away_slight"; label = "Legere domination Exterieur"
+        else:                side = "balanced";    label = "Equilibre"
+        log.info(f"OK SofaScore momentum : {label} (intensite={intensity})")
+        return {"side":side,"intensity":intensity,"label":label,
+                "home_pct":round(home_pct),"away_pct":round(away_pct)}
+    except Exception as e:
+        log.debug(f"Erreur SofaScore momentum: {e}"); return None
+
+async def fetch_sofascore_data(session, home_team, away_team, elapsed):
+    event_id = await fetch_sofascore_id(session, home_team, away_team)
+    if not event_id:
+        return None, None
+    stats, momentum = await asyncio.gather(
+        fetch_sofascore_stats(session, event_id),
+        fetch_sofascore_momentum(session, event_id, elapsed),
+    )
+    return stats, momentum
 
 async def fetch_xg_understat(session, league_id, home_team, away_team):
     ln = UNDERSTAT_LEAGUES.get(league_id)
@@ -457,7 +493,7 @@ async def fetch_xg_understat(session, league_id, home_team, away_team):
                         "total":round(xg_h+xg_a,2)}
         return None
     except Exception as e:
-        log.error(f"Erreur Understat: {e}"); return None
+        log.debug(f"Erreur Understat: {e}"); return None
 
 def get_interval(elapsed):
     if elapsed <= 15:   return "0-15"
@@ -467,7 +503,8 @@ def get_interval(elapsed):
     elif elapsed <= 75: return "61-75"
     else:               return "76-90"
 
-def calculate_danger_score(fixture, af_stats, xg_us, fm_data, hist_home, hist_away, scenario):
+def calculate_danger_score(fixture, af_stats, sf_stats, sf_momentum,
+                           xg_us, hist_home, hist_away, scenario):
     score = 0; signals = []
     elapsed = fixture["fixture"]["status"]["elapsed"] or 1
     gh  = fixture["goals"]["home"] or 0
@@ -475,103 +512,46 @@ def calculate_danger_score(fixture, af_stats, xg_us, fm_data, hist_home, hist_aw
     lid = fixture["league"]["id"]
     haf = af_stats.get("home", {}); aaf = af_stats.get("away", {})
 
-    xgot_total = round(
-        (fm_data.get("xgot_home",0) if fm_data else 0) +
-        (fm_data.get("xgot_away",0) if fm_data else 0), 2
-    )
-    xg_total = 0.0; xg_src = None
-    if fm_data and fm_data.get("xg_total", 0) > 0:
-        xg_total = fm_data["xg_total"]; xg_src = "FotMob"
-    elif xg_us:
-        xg_total = xg_us["total"]; xg_src = "Understat"
+    if sf_stats and (sf_stats.get("shots_on_home",0) + sf_stats.get("shots_on_away",0)) > 0:
+        son_h = sf_stats["shots_on_home"]; son_a = sf_stats["shots_on_away"]
+        st_h  = sf_stats.get("shots_total_home", son_h); st_a = sf_stats.get("shots_total_away", son_a)
+    else:
+        son_h = haf.get("shots_on",0); son_a = aaf.get("shots_on",0)
+        st_h  = haf.get("shots_total",0); st_a = aaf.get("shots_total",0)
 
-    if xgot_total > 0:
-        if xgot_total >= 2.0:   score += 30; signals.append(f"xGOT TRES eleve : {xgot_total}")
-        elif xgot_total >= 1.2: score += 22; signals.append(f"xGOT eleve : {xgot_total}")
-        elif xgot_total >= 0.6: score += 14; signals.append(f"xGOT : {xgot_total}")
-        elif xgot_total >= 0.2: score += 7;  signals.append(f"xGOT : {xgot_total}")
-    elif xg_total > 0:
-        if xg_total >= 3.0:   score += 25; signals.append(f"xG TRES eleve : {xg_total} ({xg_src})")
-        elif xg_total >= 2.0: score += 18; signals.append(f"xG eleve : {xg_total} ({xg_src})")
-        elif xg_total >= 1.2: score += 12; signals.append(f"xG : {xg_total} ({xg_src})")
-        elif xg_total >= 0.5: score += 6;  signals.append(f"xG : {xg_total} ({xg_src})")
-
-    if fm_data and max(fm_data.get("xg_home",0), fm_data.get("xg_away",0)) >= 1.5:
-        score = min(100, score+3)
-        signals.append(f"Domination xG : {fm_data['xg_home']} vs {fm_data['xg_away']}")
-
-    if fm_data:
-        bc = int(fm_data.get("big_chances_home",0)) + int(fm_data.get("big_chances_away",0))
-        bc_missed = int(fm_data.get("big_chances_missed_home",0)) + int(fm_data.get("big_chances_missed_away",0))
-        if bc >= 5:   score += 20; signals.append(f"Enormement de grosses occasions : {bc}")
-        elif bc >= 3: score += 14; signals.append(f"Grosses occasions : {bc}")
-        elif bc >= 1: score += 7;  signals.append(f"Grosse occasion : {bc}")
-        if bc_missed >= 2:
-            score = min(100, score+4); signals.append(f"Occasions ratees : {bc_missed} — rebond probable")
-
-    son_h = int(fm_data.get("shots_on_home",0)) if fm_data else haf.get("shots_on",0)
-    son_a = int(fm_data.get("shots_on_away",0)) if fm_data else aaf.get("shots_on",0)
-    st_h  = int(fm_data.get("shots_total_home",0)) if fm_data else haf.get("shots_total",0)
-    st_a  = int(fm_data.get("shots_total_away",0)) if fm_data else aaf.get("shots_total",0)
     son = son_h+son_a; st = st_h+st_a; spm = son/elapsed
-
-    if spm >= 0.25:   score += 20; signals.append(f"Rythme TRES intense : {son} cadres/{st} tirs")
-    elif spm >= 0.15: score += 15; signals.append(f"Rythme intense : {son}/{st} tirs")
-    elif son >= 8:    score += 12; signals.append(f"Beaucoup de tirs cadres : {son}/{st}")
-    elif son >= 5:    score += 8;  signals.append(f"Tirs cadres : {son}/{st}")
-    elif son >= 3:    score += 4;  signals.append(f"Tirs cadres : {son}")
+    if spm >= 0.25:   score += 22; signals.append(f"Rythme TRES intense : {son} cadres/{st} tirs")
+    elif spm >= 0.15: score += 16; signals.append(f"Rythme intense : {son}/{st} tirs")
+    elif son >= 8:    score += 13; signals.append(f"Beaucoup de tirs cadres : {son}/{st}")
+    elif son >= 5:    score += 9;  signals.append(f"Tirs cadres : {son}/{st}")
+    elif son >= 3:    score += 5;  signals.append(f"Tirs cadres : {son}")
     elif son >= 1:    score += 2
 
-    if fm_data:
-        box = int(fm_data.get("shots_box_home",0)) + int(fm_data.get("shots_box_away",0))
-        if box >= 8:   score = min(100, score+5); signals.append(f"Tirs dans surface : {box}")
-        elif box >= 5: score = min(100, score+3)
-        wood = int(fm_data.get("shots_woodwork_home",0)) + int(fm_data.get("shots_woodwork_away",0))
-        if wood >= 1:  score = min(100, score+5); signals.append(f"Bois touche(s) : {wood}")
-
-    if fm_data:
-        tob = int(fm_data.get("touches_opp_box_home",0)) + int(fm_data.get("touches_opp_box_away",0))
-        if tob >= 30:   score += 10; signals.append(f"Pression surface : {tob} touches")
-        elif tob >= 20: score += 6;  signals.append(f"Touches surface : {tob}")
-        elif tob >= 10: score += 3
-
-    cor_h = int(fm_data.get("corners_home",0)) if fm_data else haf.get("corners",0)
-    cor_a = int(fm_data.get("corners_away",0)) if fm_data else aaf.get("corners",0)
+    cor_h = sf_stats.get("corners_home",0) if sf_stats else haf.get("corners",0)
+    cor_a = sf_stats.get("corners_away",0) if sf_stats else aaf.get("corners",0)
     corners = cor_h+cor_a
     if corners >= 10:  score += 8; signals.append(f"Nombreux corners : {corners}")
     elif corners >= 7: score += 5; signals.append(f"Corners : {corners}")
-    elif corners >= 4: score += 3
+    elif corners >= 4: score += 3; signals.append(f"Corners : {corners}")
     elif corners >= 2: score += 1
 
     diff = abs(gh-ga)
     if diff == 0:   score += 7; signals.append(f"Score nul ({gh}-{ga}) — pression max")
     elif diff == 1: score += 4; signals.append(f"Score serre ({gh}-{ga})")
 
-    if fm_data:
-        mom = fm_data.get("momentum","")
-        if fm_data.get("home_dominant") or fm_data.get("away_dominant"):
-            score += 10; signals.append(f"Momentum : {mom}")
-        elif "legere" in mom.lower():
-            score += 5; signals.append(f"Momentum : {mom}")
-
-    if fm_data:
-        saves = int(fm_data.get("keeper_saves_home",0)) + int(fm_data.get("keeper_saves_away",0))
-        if saves >= 5:   score += 6; signals.append(f"Gardiens tres sollicites : {saves} arrets")
-        elif saves >= 3: score += 3; signals.append(f"Gardiens sollicites : {saves} arrets")
-
     if scenario:
         conv = scenario["conversion"]; tot = scenario["total_matches"]
-        if conv >= 85:   score += 15; signals.append(f"Historique : {conv}% de buts ({scenario['matches_with_goal']}/{tot})")
+        if conv >= 85:   score += 15; signals.append(f"Historique : {conv}% ({scenario['matches_with_goal']}/{tot})")
         elif conv >= 70: score += 10; signals.append(f"Historique : {conv}% ({scenario['matches_with_goal']}/{tot})")
         elif conv >= 55: score += 6;  signals.append(f"Historique : {conv}%")
-        elif conv >= 40: score += 2
+        elif conv >= 40: score += 3
 
     profile = LEAGUE_PROFILES.get(lid)
     if profile:
         interval = get_interval(elapsed)
         peak = profile.get("goal_peaks",{}).get(interval,15)
         if peak >= 22:   score += 8; signals.append(f"Pic de buts max : {peak}% en {interval}min")
-        elif peak >= 18: score += 5; signals.append(f"Pic de buts eleve : {peak}% en {interval}min")
+        elif peak >= 18: score += 5; signals.append(f"Pic de buts eleve : {peak}%")
         elif peak >= 15: score += 2
 
     bonus_form = 0
@@ -590,10 +570,51 @@ def calculate_danger_score(fixture, af_stats, xg_us, fm_data, hist_home, hist_aw
         if hist_away: parts.append(f"EXT o25={hist_away.get('over25_pct',0)}% btts={hist_away.get('btts_pct',0)}%")
         signals.append(f"Forme offensive : {' | '.join(parts)} (+{bonus_form}pts)")
 
+    if xg_us and xg_us.get("total",0) > 0:
+        t = xg_us["total"]
+        if t >= 3.0:   score += 15; signals.append(f"xG TRES eleve : {t} (Understat)")
+        elif t >= 2.0: score += 10; signals.append(f"xG eleve : {t} (Understat)")
+        elif t >= 1.2: score += 6;  signals.append(f"xG : {t} (Understat)")
+        elif t >= 0.5: score += 3
+
+    if sf_stats:
+        tob = sf_stats.get("touches_box_home",0) + sf_stats.get("touches_box_away",0)
+        if tob >= 35:   score += 10; signals.append(f"Pression surface : {tob} touches")
+        elif tob >= 22: score += 6;  signals.append(f"Touches surface : {tob}")
+        elif tob >= 12: score += 3
+        wood = sf_stats.get("woodwork_home",0) + sf_stats.get("woodwork_away",0)
+        if wood >= 2:   score += 6; signals.append(f"Bois touche(s) : {wood}")
+        elif wood >= 1: score += 3; signals.append(f"Bois touche : {wood}")
+        saves = sf_stats.get("saves_home",0) + sf_stats.get("saves_away",0)
+        if saves >= 6:   score += 6; signals.append(f"Gardiens tres sollicites : {saves} arrets")
+        elif saves >= 4: score += 4; signals.append(f"Gardiens sollicites : {saves} arrets")
+        elif saves >= 2: score += 2
+        box = sf_stats.get("shots_box_home",0) + sf_stats.get("shots_box_away",0)
+        if box >= 10:  score += 5; signals.append(f"Tirs dans surface : {box}")
+        elif box >= 6: score += 3
+
+    if sf_momentum:
+        side = sf_momentum.get("side","balanced")
+        intensity = sf_momentum.get("intensity",0)
+        label = sf_momentum.get("label","")
+        if side in ("home_strong","away_strong"):
+            score += min(15, 8 + intensity//10); signals.append(f"Momentum fort : {label}")
+        elif side in ("home_slight","away_slight"):
+            score += min(8, 4 + intensity//15); signals.append(f"Momentum : {label}")
+
     return min(score, 100), signals
 
-def should_alert(fid, ds, gh, ga):
+def is_alert_allowed_now():
+    """Bloque les alertes entre 23h30 et 07h00"""
+    from datetime import time
+    now = datetime.now().time()
+    if time(23, 30) <= now or now < time(7, 0):
+        return False
+    return True
+
+def should_alert(fid, ds, gh, ga, scenario):
     if ds < DANGER_THRESHOLD: return False
+    if not is_alert_allowed_now(): return False
     prev = last_alert_score.get(fid)
     if prev is None: return True
     return (gh, ga) != prev
@@ -601,7 +622,7 @@ def should_alert(fid, ds, gh, ga):
 def danger_level(s):
     if s >= 80:   return "TRES ELEVE 🔴"
     elif s >= 65: return "ELEVE 🟠"
-    elif s >= 55: return "MODERE 🟡"
+    elif s >= 50: return "MODERE 🟡"
     return "FAIBLE ⚪"
 
 def form_emojis(form_str):
@@ -611,7 +632,7 @@ def form_emojis(form_str):
 def target_odds(ds):
     if ds >= 80:   return "1.35–1.55"
     elif ds >= 65: return "1.50–1.75"
-    elif ds >= 55: return "1.65–1.95"
+    elif ds >= 50: return "1.65–1.95"
     return "1.85–2.20"
 
 def entry_window(elapsed, ds):
@@ -625,8 +646,8 @@ def calc_prob(ds, elapsed, scenario):
         ptot = min(95, int((ptot/100*0.55 + scenario["conversion"]/100*0.45)*100))
     return ptot
 
-def format_alert(fixture, af_stats, xg_us, fm_data, ds, signals,
-                 hist_home, hist_away, scenario):
+def format_alert(fixture, af_stats, sf_stats, sf_momentum, xg_us,
+                 ds, signals, hist_home, hist_away, scenario):
     now     = datetime.now().strftime("%H:%M")
     lid     = fixture["league"]["id"]
     elapsed = fixture["fixture"]["status"]["elapsed"] or 0
@@ -640,42 +661,40 @@ def format_alert(fixture, af_stats, xg_us, fm_data, ds, signals,
     entry, window = entry_window(elapsed, ds)
     prob = calc_prob(ds, elapsed, scenario)
 
-    if fm_data and fm_data.get("xg_total",0) > 0:
-        xh = fm_data["xg_home"]; xa = fm_data["xg_away"]
-        xgot = round(fm_data.get("xgot_home",0)+fm_data.get("xgot_away",0), 2)
-        xg_str = f"xG {xh}–{xa} = <b>{fm_data['xg_total']}</b>"
-        if xgot > 0: xg_str += f"  |  xGOT <b>{xgot}</b>"
-        xg_str += " <i>(FotMob)</i>"
-    elif xg_us:
+    if sf_stats and (sf_stats.get("shots_on_home",0)+sf_stats.get("shots_on_away",0)) > 0:
+        son_h = sf_stats["shots_on_home"]; son_a = sf_stats["shots_on_away"]
+        st_h  = sf_stats.get("shots_total_home",son_h); st_a = sf_stats.get("shots_total_away",son_a)
+        cor_h = sf_stats.get("corners_home",0); cor_a = sf_stats.get("corners_away",0)
+        pos_h = sf_stats.get("possession_home",50); pos_a = sf_stats.get("possession_away",50)
+    else:
+        son_h = haf.get("shots_on",0); son_a = aaf.get("shots_on",0)
+        st_h  = haf.get("shots_total",0); st_a = aaf.get("shots_total",0)
+        cor_h = haf.get("corners",0); cor_a = aaf.get("corners",0)
+        pos_h = haf.get("possession",50); pos_a = aaf.get("possession",50)
+
+    if xg_us and xg_us.get("total",0) > 0:
         xg_str = f"xG {xg_us['home']}–{xg_us['away']} = <b>{xg_us['total']}</b> <i>(Understat)</i>"
     else:
         xg_str = "xG : N/A"
 
-    son_h = int(fm_data.get("shots_on_home",0)) if fm_data else haf.get("shots_on",0)
-    son_a = int(fm_data.get("shots_on_away",0)) if fm_data else aaf.get("shots_on",0)
-    st_h  = int(fm_data.get("shots_total_home",0)) if fm_data else haf.get("shots_total",0)
-    st_a  = int(fm_data.get("shots_total_away",0)) if fm_data else aaf.get("shots_total",0)
-    cor_h = int(fm_data.get("corners_home",0)) if fm_data else haf.get("corners",0)
-    cor_a = int(fm_data.get("corners_away",0)) if fm_data else aaf.get("corners",0)
-    pos_h = int(fm_data.get("possession_home",50)) if fm_data else haf.get("possession",50)
-    pos_a = int(fm_data.get("possession_away",50)) if fm_data else aaf.get("possession",50)
-
     extras = []
-    if fm_data:
-        bc    = int(fm_data.get("big_chances_home",0))+int(fm_data.get("big_chances_away",0))
-        tob   = int(fm_data.get("touches_opp_box_home",0))+int(fm_data.get("touches_opp_box_away",0))
-        saves = int(fm_data.get("keeper_saves_home",0))+int(fm_data.get("keeper_saves_away",0))
-        if bc > 0:    extras.append(f"Grosses occ. : {bc}")
+    if sf_stats:
+        tob   = sf_stats.get("touches_box_home",0)+sf_stats.get("touches_box_away",0)
+        saves = sf_stats.get("saves_home",0)+sf_stats.get("saves_away",0)
+        wood  = sf_stats.get("woodwork_home",0)+sf_stats.get("woodwork_away",0)
         if tob > 0:   extras.append(f"Surface : {tob} touches")
-        if saves > 0: extras.append(f"Arrets : {saves}")
+        if saves > 0: extras.append(f"Arrêts : {saves}")
+        if wood > 0:  extras.append(f"Bois : {wood}")
+    if sf_momentum and sf_momentum.get("side","balanced") != "balanced":
+        extras.append(f"Momentum : {sf_momentum['label']}")
     extras_line = ("\n  " + "  |  ".join(extras)) if extras else ""
 
+    sf_ok = "✅ SF" if sf_stats else "⚪ AF"
     hf_str = form_emojis(hist_home.get("form","?????")) if hist_home else "N/A"
     af_str = form_emojis(hist_away.get("form","?????")) if hist_away else "N/A"
     avg_buts = "N/A"
     if hist_home and hist_away:
         avg_buts = round((hist_home.get("avg5",0)+hist_away.get("avg5",0))/2, 1)
-
     signals_str = "\n".join(f"  • {s}" for s in signals[:5]) if signals else "  • Analyse..."
 
     return (
@@ -683,7 +702,7 @@ def format_alert(fixture, af_stats, xg_us, fm_data, ds, signals,
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🏆 <b>{league}</b> · {label}\n\n"
         f"🏟 <b>{home}</b>  <b>{gh} – {ga}</b>  <b>{away}</b>\n\n"
-        f"📊 Score de danger : <b>{ds}/100</b> — {danger_level(ds)}\n"
+        f"📊 Score de danger : <b>{ds}/100</b> — {danger_level(ds)} {sf_ok}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"⚡ <b>Signaux clés</b>\n"
         f"{signals_str}\n\n"
@@ -702,7 +721,7 @@ def format_alert(fixture, af_stats, xg_us, fm_data, ds, signals,
         f"⏱ Fenêtre but : {window}\n"
         f"📉 Proba fin de match : <b>{prob}%</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>FootBot v3.6 · {now}</i>"
+        f"<i>FootBot v3.7 · {now}</i>"
     )
 
 async def send_message(bot, text):
@@ -720,6 +739,7 @@ async def monitor_loop(bot):
                 fixtures = await fetch_live_fixtures(session)
                 targets  = [f for f in fixtures if f["league"]["id"] in LEAGUES]
                 log.info(f"{len(targets)} matchs en direct")
+                sf_id_cache.clear()
 
                 for fixture in targets:
                     fid       = fixture["fixture"]["id"]
@@ -734,8 +754,7 @@ async def monitor_loop(bot):
                     gh = fixture["goals"]["home"] or 0
                     ga = fixture["goals"]["away"] or 0
 
-                    if status not in ["1H","2H","HT"]:
-                        continue
+                    if status not in ["1H","2H","HT"]: continue
 
                     if elapsed > MAX_ELAPSED:
                         log.info(f"SKIP {home_name} vs {away_name} : {elapsed}' > {MAX_ELAPSED}'")
@@ -745,16 +764,18 @@ async def monitor_loop(bot):
                         log.info(f"SKIP {home_name} vs {away_name} : {gh+ga} buts")
                         continue
 
-                    (af_stats, xg_us, hist_home, hist_away, fm_data) = await asyncio.gather(
+                    (af_stats, xg_us, hist_home, hist_away,
+                     sf_result) = await asyncio.gather(
                         fetch_live_stats_af(session, fid),
                         fetch_xg_understat(session, lid, home_name, away_name),
                         fetch_team_history_af(session, home_id, lid, season),
                         fetch_team_history_af(session, away_id, lid, season),
-                        fetch_fotmob_data(session, home_name, away_name),
+                        fetch_sofascore_data(session, home_name, away_name, elapsed),
                     )
 
-                    if not af_stats:
-                        continue
+                    sf_stats, sf_momentum = sf_result if sf_result else (None, None)
+
+                    if not af_stats: continue
 
                     home_zz = hist_home.get("zero_zero_5",0) if hist_home else 0
                     away_zz = hist_away.get("zero_zero_5",0) if hist_away else 0
@@ -765,23 +786,25 @@ async def monitor_loop(bot):
                     scenario = await fetch_scenario_history(session, lid, season, gh, ga, elapsed)
 
                     ds, signals = calculate_danger_score(
-                        fixture, af_stats, xg_us, fm_data, hist_home, hist_away, scenario)
+                        fixture, af_stats, sf_stats, sf_momentum,
+                        xg_us, hist_home, hist_away, scenario)
 
                     h_form = hist_home.get("form","?") if hist_home else "?"
                     a_form = hist_away.get("form","?") if hist_away else "?"
-                    fm_ok  = f"OK FotMob xG={fm_data['xg_total']}" if fm_data else "-- FotMob"
+                    sf_ok  = "OK SofaScore" if sf_stats else "-- SofaScore"
+                    sf_mom = f"momentum={sf_momentum['label']}" if sf_momentum else "no momentum"
                     us_ok  = f"OK Understat xG={xg_us['total']}" if xg_us else "-- Understat"
                     log.info(
                         f"{home_name} vs {away_name} | {elapsed}' | {gh}-{ga} | {ds}/100\n"
-                        f"   {fm_ok}  {us_ok}\n"
+                        f"   {sf_ok} ({sf_mom})  {us_ok}\n"
                         f"   DOM={h_form}(0-0:{home_zz}/5) EXT={a_form}(0-0:{away_zz}/5)"
                     )
 
-                    if should_alert(fid, ds, gh, ga):
+                    if should_alert(fid, ds, gh, ga, scenario):
                         log.info(f"ALERTE {home_name} vs {away_name} | {ds}/100 | {gh}-{ga}")
                         await send_message(bot, format_alert(
-                            fixture, af_stats, xg_us, fm_data, ds, signals,
-                            hist_home, hist_away, scenario))
+                            fixture, af_stats, sf_stats, sf_momentum, xg_us,
+                            ds, signals, hist_home, hist_away, scenario))
                         last_alert_score[fid] = (gh, ga)
 
                     await asyncio.sleep(1)
@@ -795,26 +818,24 @@ async def main():
     await bot.send_message(
         chat_id=TELEGRAM_CHAT_ID,
         text=(
-            "<b>BOT PREDICTION BUT v3.6</b>\n\n"
-            "<b>Sources actives :</b>\n"
-            "• API-Football (stats live + historique)\n"
-            "• FotMob — corrige v3.6 :\n"
-            "  xG, xGOT, big chances, surface,\n"
-            "  bois, gardiens, momentum\n"
-            "• Understat (xG backup — 6 ligues)\n\n"
-            "<b>Scoring recalibre :</b>\n"
-            "• xGOT = indicateur principal (30 pts)\n"
-            "• Big chances = 20 pts\n"
-            "• Tirs cadres = 20 pts\n"
-            "• Touches surface = 10 pts\n"
-            "• Momentum = 10 pts\n"
-            "• Historique = 15 pts\n"
-            "• Forme equipes = 12 pts\n\n"
-            "<b>Filtres actifs :</b>\n"
+            "<b>BOT PREDICTION BUT v3.7</b>\n\n"
+            "<b>Sources :</b>\n"
+            "• API-Football — base fiable\n"
+            "  (tirs, corners, historique, forme)\n"
+            "• SofaScore — bonus live :\n"
+            "  tirs precis, touches surface,\n"
+            "  bois, arrets gardien, momentum\n"
+            "• Understat — xG backup (6 ligues)\n\n"
+            "<b>Scoring :</b>\n"
+            "• API-Football seul → 45+ possible\n"
+            "• SofaScore actif → jusqu'a 90+\n"
+            "• Alerte = seuil atteint\n\n"
+            "<b>Filtres :</b>\n"
             f"• Pas d'alerte apres {MAX_ELAPSED}'\n"
             f"• Skip si {MAX_TOTAL_GOALS+1}+ buts\n"
             f"• Skip si {MAX_ZERO_ZERO+1}+ matchs 0-0 sur 5\n"
-            "• Anti-doublon par score\n\n"
+            "• Anti-doublon par score\n"
+            "• Inactif de 23h30 à 07h00\n\n"
             f"Seuil : {DANGER_THRESHOLD}/100"
         ),
         parse_mode=ParseMode.HTML
