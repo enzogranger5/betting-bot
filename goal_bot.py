@@ -398,7 +398,7 @@ def calculate_danger_score(fixture, af_stats, xg_us, hist_home, hist_away, scena
 
     # ── 1. xG (Understat si dispo, sinon estimé) - max 25 pts ────────────────
     shots_off   = max(0, st - son)
-    xg_estime   = round(son * 0.32 + shots_off * 0.08 + cor * 0.05, 2)
+    xg_estime   = round(son * 0.11 + shots_off * 0.04 + cor * 0.025, 2)
 
     if xg_us and xg_us.get("total", 0) > 0:
         xg_val = xg_us["total"]
