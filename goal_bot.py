@@ -576,7 +576,7 @@ def format_alert(fixture, af_stats, xg_us, xg_estime,
     away    = fixture["teams"]["away"]["name"]
     gh      = fixture["goals"]["home"] or 0
     ga      = fixture["goals"]["away"] or 0
-    league  = LEAGUES.get(lid, fixture["league"]["name"])
+    league = fixture["league"]["name"]
     label   = "MT" if fixture["fixture"]["status"]["short"] == "HT" else f"{elapsed}'"
     haf = af_stats.get("home",{}); aaf = af_stats.get("away",{})
     entry, window = entry_window(elapsed, ds)
