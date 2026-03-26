@@ -1,1 +1,1 @@
-worker: python bot.py & python goal_bot.py
+worker: python goal_bot.py
